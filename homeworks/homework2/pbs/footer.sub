@@ -1,2 +1,4 @@
 
 qstat -f $PBS_JOBID
+
+echo "Finished MPI run"
