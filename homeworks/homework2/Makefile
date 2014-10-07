@@ -10,11 +10,11 @@ all: exec/alg2-GNU-OpenMPI
 COMPILE:
 	mkdir -p exec/
 	module unload $(ALL_MODULES) && \
-	module load ${TMODULES} && \
-	mpicc -std=c99 ${EXEC_SRC} -o ${EXEC_TARGET}
+	module load ${TMODULES} TAU && \
+	tau_cc.sh -std=c99 ${EXEC_SRC} -o ${EXEC_TARGET}
 
 SUBMIT:
-	echo "mpiexec ${EXECUTABLE}" | cat pbs/header.sub - pbs/footer.sub | \
+	echo "cd workdir/alg2; module load TAU; mpiexec tau_exec ./${EXECUTABLE}" | cat pbs/header.sub - pbs/footer.sub | \
     qsub ${RESOURCES} -N ${EXECUTABLE} -o workdir/${EXECUTABLE}.pbs -e workdir/${EXECUTABLE}.err
 
 ###########################
@@ -29,16 +29,17 @@ exec/alg2-GNU-OpenMPI: export EXEC_SRC = src/alg2.c
 exec/alg2-GNU-OpenMPI: src/alg2.c
 	$(MAKE) COMPILE
 
-workdir/alg2-GNU-OpenMPI.pbs: export EXECUTABLE = exec/hello-GNU-OpenMPI
+workdir/alg2-GNU-OpenMPI.pbs: export EXECUTABLE = hello-GNU-OpenMPI
 workdir/alg2-GNU-OpenMPI.pbs:
-	mkdir -p workdir/exec
+	mkdir -p workdir/alg2
+	cp exec/${EXECUTABLE} workdir/alg2
 	$(MAKE) SUBMIT
 
-###########################
+######################
 #
-# Vector reduction (alg 2)
+# Hello world example
 #
-###########################
+######################
 
 exec/hello-GNU-MVAPICH: export TMODULES = GNU MVAPICH
 exec/hello-GNU-MVAPICH: export EXEC_TARGET = exec/hello-GNU-MVAPICH
