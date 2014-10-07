@@ -1,7 +1,8 @@
 SHELL=/bin/bash
 
 ALL_MODULES=OpenMPI MVAPICH MVAPICH GNU Intel
-RESOURCES=-l walltime=00:01:00,nodes=4:ppn=1 #-A ged-intel11
+PROCS=1 4 16 64 256
+VECTOR_SIZE=10 100 5000
 
 #all: exec/hello-GNU-MVAPICH exec/hello-GNU-MVAPICH2 exec/hello-GNU-OpenMPI exec/hello-Intel-MVAPICH2 exec/hello-Intel-OpenMPI
 
@@ -11,11 +12,11 @@ COMPILE:
 	mkdir -p exec/
 	module unload $(ALL_MODULES) && \
 	module load ${TMODULES} TAU && \
-	tau_cc.sh -std=c99 ${EXEC_SRC} -o ${EXEC_TARGET}
+	tau_cc.sh -optCompInst -std=c99 -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
 
 SUBMIT:
-	echo "cd workdir/alg2; module load TAU; mpiexec tau_exec ./${EXECUTABLE}" | cat pbs/header.sub - pbs/footer.sub | \
-    qsub ${RESOURCES} -N ${EXECUTABLE} -o workdir/${EXECUTABLE}.pbs -e workdir/${EXECUTABLE}.err
+	echo "cd ${WORKDIR}; module load TAU; mpiexec tau_exec ./${EXECUTABLE}" | cat pbs/header.sub - pbs/footer.sub | \
+    qsub -l walltime=00:01:00,nodes=${NODES}:ppn=1 -N ${EXECUTABLE} -o ${WORKDIR}/${EXECUTABLE}.pbs -e ${WORKDIR}/${EXECUTABLE}.err
 
 ###########################
 #
@@ -24,16 +25,23 @@ SUBMIT:
 ###########################
 
 exec/alg2-GNU-OpenMPI: export TMODULES = GNU OpenMPI
-exec/alg2-GNU-OpenMPI: export EXEC_TARGET = exec/hello-GNU-OpenMPI
 exec/alg2-GNU-OpenMPI: export EXEC_SRC = src/alg2.c
 exec/alg2-GNU-OpenMPI: src/alg2.c
-	$(MAKE) COMPILE
+	mkdir -p exec
+	for n in ${VECTOR_SIZE}; do \
+	  $(MAKE) NSIZE=$$n EXEC_TARGET=exec/alg2-GNU-OpenMPI-$$n COMPILE; \
+	done
 
-workdir/alg2-GNU-OpenMPI.pbs: export EXECUTABLE = hello-GNU-OpenMPI
+workdir/alg2-GNU-OpenMPI.pbs: export EXEC_BASE=alg2-GNU-OpenMPI
+workdir/alg2-GNU-OpenMPI.pbs: export WORKDIR_BASE = workdir/alg2
 workdir/alg2-GNU-OpenMPI.pbs:
-	mkdir -p workdir/alg2
-	cp exec/${EXECUTABLE} workdir/alg2
-	$(MAKE) SUBMIT
+	for p in ${PROCS}; do \
+      for n in ${VECTOR_SIZE}; do \
+		mkdir -p ${WORKDIR_BASE}/$$n/$$p ; \
+		cp exec/${EXEC_BASE}-$$n ${WORKDIR_BASE}/$$n/$$p ; \
+        $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n/$$p EXECUTABLE=${EXEC_BASE}-$$n NODES=$$p SUBMIT; \
+      done; \
+    done
 
 ######################
 #
