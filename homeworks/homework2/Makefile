@@ -17,6 +17,18 @@ SUBMIT:
 	echo "cd ${WORKDIR}/\$$p; module unload ${ALL_MODULES}; module load ${TMODULES}; mpiexec -np \$$p tau_exec ./${EXECUTABLE};" | cat pbs/header.sub - pbs/footer.sub | tee ${WORKDIR}/script.sub | \
     qsub -l walltime=00:20:00,nodes=256:ppn=1 -N ${EXECUTABLE} -o ${WORKDIR}/${EXECUTABLE}.pbs -e ${WORKDIR}/${EXECUTABLE}.err
 
+############
+# Local dev
+############
+
+COMPILE_LOCAL:
+	mkdir -p exec/
+	mpicc -std=c99 -lm -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
+
+SUBMIT_LOCAL:
+	echo "cd ${WORKDIR}/\$$p; module unload ${ALL_MODULES}; module load ${TMODULES}; mpiexec -np \$$p tau_exec ./${EXECUTABLE};" | cat pbs/header.sub - pbs/footer.sub | tee ${WORKDIR}/script.sub | \
+    qsub -l walltime=00:20:00,nodes=256:ppn=1 -N ${EXECUTABLE} -o ${WORKDIR}/${EXECUTABLE}.pbs -e ${WORKDIR}/${EXECUTABLE}.err
+
 ###########################
 #
 # Vector reduction (alg 2)
@@ -68,6 +80,14 @@ workdir/alg3-GNU-OpenMPI.pbs:
       done; \
       $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT; \
     done
+
+run_local: exec/alg3-GNU-OpenMPI
+	for n in ${VECTOR_SIZE}; do \
+      for p in ${PROCS}; do \
+		  echo -n "$$n $$p: " ; \
+	      mpiexec -np $$p exec/alg3-GNU-OpenMPI-$$n; \
+	  done; \
+    done;
 
 ######################
 #

@@ -11,8 +11,8 @@ for i in range(1, m + 1):
     for rank in range(procs):
         sender = 0
         receiver = 0
-        divider = pow(2, i)
-        offset = divider / 2
+        divider = 2 << (i - 1) #pow(2, i)
+        offset = divider >> 1 # divider / 2
 
         if (rank % divider == 0):
             receiver = 1

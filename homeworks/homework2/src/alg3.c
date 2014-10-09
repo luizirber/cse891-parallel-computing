@@ -38,9 +38,8 @@ int distribute_vector(int vect[], int procs) {
 }
 
 
-int receive_vector(int vect[], int procs, int rank) {
+int receive_vector(int vect[], int chunk_size) {
   MPI_Status status;
-  int chunk_size = calc_chunk_for_proc(rank, VECTOR_SIZE, procs);
   MPI_Recv(vect, chunk_size, MPI_INT, 0, DISTRIBUTE_TAG, MPI_COMM_WORLD, &status);
   return 0;
 }
@@ -68,25 +67,24 @@ int main(int argc, char **argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &procs);
 
   chunk_size = calc_chunk_for_proc(rank, VECTOR_SIZE, procs);
-
   if (rank == 0) {
     init_vector(vector);
     distribute_vector(vector, procs);
   } else {
-    receive_vector(vector, procs, rank);
+    receive_vector(vector, chunk_size);
   }
 
   my_sum = sum_vector(vector, chunk_size);
 
-  int m = log2(procs);
-  int sender = 0, receiver = 0;
-  int divider, partner, offset;
+  unsigned int m = (int)log2(procs);
+  unsigned int sender = 0, receiver = 0;
+  unsigned int divider, partner, offset;
 
-  for (int i = 1; i < m; ++i ) {
+  for (int i = 1; i <= m; ++i ) {
     sender = 0;
     receiver = 0;
-    divider = pow(2, i);
-    offset = divider / 2;
+    divider = 2 << (i - 1); /* Fancy way to do 2^i and avoid floats*/
+    offset = divider >> 1; /* And this is divider / 2 without floats */
 
     if (rank % divider == 0) {
       receiver = 1;
@@ -101,11 +99,12 @@ int main(int argc, char **argv) {
                SUM_BASE_STEP_TAG + i, MPI_COMM_WORLD, &status);
       my_sum += other_sum;
     } else if (sender) {
-      MPI_Send(&my_sum, 1, MPI_LONG_LONG_INT, partner, 
+      MPI_Send(&my_sum, 1, MPI_LONG_LONG_INT, partner,
                SUM_BASE_STEP_TAG + i, MPI_COMM_WORLD);
     }
   }
 
+  /*
   if (rank == 0) {
     long long int serial_sum = 0;
     for (int i = 0; i < VECTOR_SIZE; ++i)
@@ -116,7 +115,7 @@ int main(int argc, char **argv) {
     } else {
       printf("DEBUG: Serial != parallel, %d\n", abs(serial_sum - my_sum));
     }
-  }
+  } */
 
   MPI_Finalize();
 
