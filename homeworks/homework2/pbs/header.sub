@@ -2,3 +2,9 @@
 
 cd $PBS_O_WORKDIR
 set -exu
+
+PROCS="1 4 16 64 256"
+VECTOR_SIZE="10 100 5000"
+
+for p in ${PROCS}
+do
