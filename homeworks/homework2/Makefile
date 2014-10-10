@@ -13,7 +13,8 @@ MKL_LIBS=-lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lm
 
 
 #all: exec/alg2-GNU-OpenMPI exec/alg3-GNU-OpenMPI
-all: exec/alg3-GNU-OpenMPI
+#all: exec/alg3-GNU-OpenMPI
+all: exec/alg2-GNU-OpenMPI exec/alg3-GNU-OpenMPI exec/reduce-GNU-OpenMPI workdir/alg2-GNU-OpenMPI.pbs workdir/alg3-GNU-OpenMPI.pbs workdir/reduce-GNU-OpenMPI.pbs
 
 COMPILE:
 	mkdir -p exec/
@@ -78,7 +79,7 @@ exec/alg3-GNU-OpenMPI: export EXEC_SRC = src/alg3.c
 exec/alg3-GNU-OpenMPI: src/alg3.c
 	mkdir -p exec
 	for n in ${VECTOR_SIZE}; do \
-	  $(MAKE) NSIZE=$$n EXEC_TARGET=exec/alg3-GNU-OpenMPI-$$n COMPILE_LOCAL; \
+	  $(MAKE) NSIZE=$$n EXEC_TARGET=exec/alg3-GNU-OpenMPI-$$n COMPILE; \
 	done
 
 workdir/alg3-GNU-OpenMPI.pbs: export TMODULES = GNU OpenMPI TAU
@@ -90,7 +91,7 @@ workdir/alg3-GNU-OpenMPI.pbs:
 		mkdir -p ${WORKDIR_BASE}/$$n/$$p ; \
 		cp exec/${EXEC_BASE}-$$n ${WORKDIR_BASE}/$$n/$$p ; \
       done; \
-      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT_LOCAL; \
+      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT; \
     done
 
 ################################
@@ -104,7 +105,7 @@ exec/reduce-GNU-OpenMPI: export EXEC_SRC = src/reduce.c
 exec/reduce-GNU-OpenMPI: src/reduce.c
 	mkdir -p exec
 	for n in ${VECTOR_SIZE}; do \
-	  $(MAKE) NSIZE=$$n EXEC_TARGET=exec/reduce-GNU-OpenMPI-$$n COMPILE_LOCAL; \
+	  $(MAKE) NSIZE=$$n EXEC_TARGET=exec/reduce-GNU-OpenMPI-$$n COMPILE; \
 	done
 
 workdir/reduce-GNU-OpenMPI.pbs: export TMODULES = GNU OpenMPI TAU
@@ -116,7 +117,7 @@ workdir/reduce-GNU-OpenMPI.pbs:
 		mkdir -p ${WORKDIR_BASE}/$$n/$$p ; \
 		cp exec/${EXEC_BASE}-$$n ${WORKDIR_BASE}/$$n/$$p ; \
       done; \
-      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT_LOCAL; \
+      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT; \
     done
 
 ################################
@@ -131,7 +132,7 @@ exec/matmult-serial-GNU-OpenMPI: src/matmult-serial.c
 	mkdir -p exec
 	for n in ${VECTOR_SIZE_P2}; do \
       for b in ${BLOCK_SIZES}; do \
-	    $(MAKE) NSIZE=$$n BSIZE=$$b EXEC_TARGET=exec/matmult-serial-GNU-OpenMPI-$$n-$$b COMPILE_LOCAL; \
+	    $(MAKE) NSIZE=$$n BSIZE=$$b EXEC_TARGET=exec/matmult-serial-GNU-OpenMPI-$$n-$$b COMPILE; \
 	  done; \
 	done
 
@@ -144,7 +145,7 @@ workdir/matmult-serial-GNU-OpenMPI.pbs:
 		mkdir -p ${WORKDIR_BASE}/$$n/$$p ; \
 		cp exec/${EXEC_BASE}-$$n ${WORKDIR_BASE}/$$n/$$p ; \
       done; \
-      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT_LOCAL; \
+      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT; \
     done
 
 exec/matmult-dgemm-GNU-OpenMPI: export TMODULES = GNU OpenMPI TAU
@@ -164,7 +165,7 @@ workdir/matmult-dgemm-GNU-OpenMPI.pbs:
 		mkdir -p ${WORKDIR_BASE}/$$n/$$p ; \
 		cp exec/${EXEC_BASE}-$$n ${WORKDIR_BASE}/$$n/$$p ; \
       done; \
-      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT_LOCAL; \
+      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT; \
     done
 
 ##############################################
