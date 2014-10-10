@@ -1,8 +1,12 @@
 SHELL=/bin/bash
 
 ALL_MODULES=OpenMPI MVAPICH MVAPICH GNU Intel TAU
-PROCS=1 4 16 64 256
+PROCS=1 4 16 64 #256
 VECTOR_SIZE=10 100 5000
+
+VECTOR_SIZE_P2=128 512 1024 1600 6144
+BLOCK_SIZES=16 32 64
+
 
 #all: exec/alg2-GNU-OpenMPI exec/alg3-GNU-OpenMPI
 all: exec/alg3-GNU-OpenMPI
@@ -11,7 +15,7 @@ COMPILE:
 	mkdir -p exec/
 	module unload $(ALL_MODULES) && \
 	module load ${TMODULES} && \
-	tau_cc.sh -optCompInst -std=c99 -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
+	tau_cc.sh -optCompInst -std=gnu99 -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} -DBLOCK_SIZE=${BSIZE} ${EXEC_SRC}
 
 SUBMIT:
 	echo "cd ${WORKDIR}/\$$p; module unload ${ALL_MODULES}; module load ${TMODULES}; mpiexec -np \$$p tau_exec ./${EXECUTABLE};" | cat pbs/header.sub - pbs/footer.sub | tee ${WORKDIR}/script.sub | \
@@ -23,7 +27,7 @@ SUBMIT:
 
 COMPILE_LOCAL:
 	mkdir -p exec/
-	mpicc -std=c99 -lm -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
+	mpicc -std=gnu99 -lblas -lm -o ${EXEC_TARGET} -DBLOCK_SIZE=${BSIZE} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
 
 SUBMIT_LOCAL:
 	echo "cd ${WORKDIR}/\$$p; module unload ${ALL_MODULES}; module load ${TMODULES}; mpiexec -np \$$p tau_exec ./${EXECUTABLE};" | cat pbs/header.sub - pbs/footer.sub | tee ${WORKDIR}/script.sub | \
@@ -66,7 +70,7 @@ exec/alg3-GNU-OpenMPI: export EXEC_SRC = src/alg3.c
 exec/alg3-GNU-OpenMPI: src/alg3.c
 	mkdir -p exec
 	for n in ${VECTOR_SIZE}; do \
-	  $(MAKE) NSIZE=$$n EXEC_TARGET=exec/alg3-GNU-OpenMPI-$$n COMPILE; \
+	  $(MAKE) NSIZE=$$n EXEC_TARGET=exec/alg3-GNU-OpenMPI-$$n COMPILE_LOCAL; \
 	done
 
 workdir/alg3-GNU-OpenMPI.pbs: export TMODULES = GNU OpenMPI TAU
@@ -78,52 +82,102 @@ workdir/alg3-GNU-OpenMPI.pbs:
 		mkdir -p ${WORKDIR_BASE}/$$n/$$p ; \
 		cp exec/${EXEC_BASE}-$$n ${WORKDIR_BASE}/$$n/$$p ; \
       done; \
-      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT; \
+      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT_LOCAL; \
     done
 
-run_local: exec/alg3-GNU-OpenMPI
+################################
+#
+# Vector reduction (MPI_reduce)
+#
+################################
+
+exec/reduce-GNU-OpenMPI: export TMODULES = GNU OpenMPI TAU
+exec/reduce-GNU-OpenMPI: export EXEC_SRC = src/reduce.c
+exec/reduce-GNU-OpenMPI: src/reduce.c
+	mkdir -p exec
+	for n in ${VECTOR_SIZE}; do \
+	  $(MAKE) NSIZE=$$n EXEC_TARGET=exec/reduce-GNU-OpenMPI-$$n COMPILE_LOCAL; \
+	done
+
+workdir/reduce-GNU-OpenMPI.pbs: export TMODULES = GNU OpenMPI TAU
+workdir/reduce-GNU-OpenMPI.pbs: export EXEC_BASE=reduce-GNU-OpenMPI
+workdir/reduce-GNU-OpenMPI.pbs: export WORKDIR_BASE = workdir/reduce
+workdir/reduce-GNU-OpenMPI.pbs:
 	for n in ${VECTOR_SIZE}; do \
       for p in ${PROCS}; do \
-		  echo -n "$$n $$p: " ; \
-	      mpiexec -np $$p exec/alg3-GNU-OpenMPI-$$n; \
+		mkdir -p ${WORKDIR_BASE}/$$n/$$p ; \
+		cp exec/${EXEC_BASE}-$$n ${WORKDIR_BASE}/$$n/$$p ; \
+      done; \
+      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT_LOCAL; \
+    done
+
+################################
+#
+# Matrix multiplication (serial)
+#
+################################
+
+exec/matmult-serial-GNU-OpenMPI: export TMODULES = GNU OpenMPI TAU
+exec/matmult-serial-GNU-OpenMPI: export EXEC_SRC = src/matmult-serial.c
+exec/matmult-serial-GNU-OpenMPI: src/matmult-serial.c
+	mkdir -p exec
+	for n in ${VECTOR_SIZE_P2}; do \
+      for b in ${BLOCK_SIZES}; do \
+	    $(MAKE) NSIZE=$$n BSIZE=$$b EXEC_TARGET=exec/matmult-serial-GNU-OpenMPI-$$n-$$b COMPILE_LOCAL; \
+	  done; \
+	done
+
+workdir/matmult-serial-GNU-OpenMPI.pbs: export TMODULES = GNU OpenMPI TAU
+workdir/matmult-serial-GNU-OpenMPI.pbs: export EXEC_BASE=matmult-serial-GNU-OpenMPI
+workdir/matmult-serial-GNU-OpenMPI.pbs: export WORKDIR_BASE = workdir/matmult-serial
+workdir/matmult-serial-GNU-OpenMPI.pbs:
+	for n in ${VECTOR_SIZE_P2}; do \
+      for p in ${PROCS}; do \
+		mkdir -p ${WORKDIR_BASE}/$$n/$$p ; \
+		cp exec/${EXEC_BASE}-$$n ${WORKDIR_BASE}/$$n/$$p ; \
+      done; \
+      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT_LOCAL; \
+    done
+
+exec/matmult-dgemm-GNU-OpenMPI: export TMODULES = GNU OpenMPI TAU
+exec/matmult-dgemm-GNU-OpenMPI: export EXEC_SRC = src/matmult-dgemm.c
+exec/matmult-dgemm-GNU-OpenMPI: src/matmult-dgemm.c
+	mkdir -p exec
+	for n in ${VECTOR_SIZE_P2}; do \
+      for b in ${BLOCK_SIZES}; do \
+	    $(MAKE) NSIZE=$$n BSIZE=$$b EXEC_TARGET=exec/matmult-dgemm-GNU-OpenMPI-$$n-$$b COMPILE_LOCAL; \
+	  done; \
+	done
+
+workdir/matmult-dgemm-GNU-OpenMPI.pbs: export TMODULES = GNU OpenMPI TAU
+workdir/matmult-dgemm-GNU-OpenMPI.pbs: export EXEC_BASE=matmult-dgemm-GNU-OpenMPI
+workdir/matmult-dgemm-GNU-OpenMPI.pbs: export WORKDIR_BASE = workdir/matmult-dgemm
+workdir/matmult-dgemm-GNU-OpenMPI.pbs:
+	for n in ${VECTOR_SIZE_P2}; do \
+      for p in ${PROCS}; do \
+		mkdir -p ${WORKDIR_BASE}/$$n/$$p ; \
+		cp exec/${EXEC_BASE}-$$n ${WORKDIR_BASE}/$$n/$$p ; \
+      done; \
+      $(MAKE) WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT_LOCAL; \
+    done
+
+##############################################
+#
+# Local development target (just for testing)
+#
+##############################################
+
+run_local: exec/matmult-dgemm-GNU-OpenMPI
+	for n in ${VECTOR_SIZE}; do \
+        for b in ${BLOCK_SIZES}; do \
+		  echo -n "$$n $$p $$b: " ; \
+	      mpiexec -np $$p exec/matmult-dgemm-GNU-OpenMPI-$$n-$$b; \
+	    done; \
 	  done; \
     done;
 
-######################
-#
-# Hello world example
-#
-######################
-
-exec/hello-GNU-MVAPICH: export TMODULES = GNU MVAPICH
-exec/hello-GNU-MVAPICH: export EXEC_TARGET = exec/hello-GNU-MVAPICH
-exec/hello-GNU-MVAPICH: export EXEC_SRC = src/mpi-hello.c
-exec/hello-GNU-MVAPICH: src/mpi-hello.c
-	$(MAKE) COMPILE
-
-exec/hello-GNU-MVAPICH2: export TMODULES = GNU MVAPICH2
-exec/hello-GNU-MVAPICH2: export EXEC_TARGET = exec/hello-GNU-MVAPICH2
-exec/hello-GNU-MVAPICH2: export EXEC_SRC = src/mpi-hello.c
-exec/hello-GNU-MVAPICH2: src/mpi-hello.c
-	$(MAKE) COMPILE
-
-exec/hello-GNU-OpenMPI: export TMODULES = GNU OpenMPI
-exec/hello-GNU-OpenMPI: export EXEC_TARGET = exec/hello-GNU-OpenMPI
-exec/hello-GNU-OpenMPI: export EXEC_SRC = src/mpi-hello.c
-exec/hello-GNU-OpenMPI: src/mpi-hello.c
-	$(MAKE) COMPILE
-
-exec/hello-Intel-OpenMPI: export TMODULES = Intel OpenMPI
-exec/hello-Intel-OpenMPI: export EXEC_TARGET = exec/hello-Intel-OpenMPI
-exec/hello-Intel-OpenMPI: export EXEC_SRC = src/mpi-hello.c
-exec/hello-Intel-OpenMPI: src/mpi-hello.c
-	$(MAKE) COMPILE
-
-exec/hello-Intel-MVAPICH2: export TMODULES = Intel MVAPICH2
-exec/hello-Intel-MVAPICH2: export EXEC_TARGET = exec/hello-GNU-MVAPICH2
-exec/hello-Intel-MVAPICH2: export EXEC_SRC = src/mpi-hello.c
-exec/hello-Intel-MVAPICH2: src/mpi-hello.c
-	$(MAKE) COMPILE
+run_once: exec/matmult-dgemm-GNU-OpenMPI
+	exec/matmult-dgemm-GNU-OpenMPI-128-16
 
 clean:
 	- rm -rf *.o exec/

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <time.h>
 
 #ifndef VECTOR_SIZE
 #define VECTOR_SIZE 6144
@@ -12,20 +13,20 @@
 #endif
 
 
-int init_matrix(int M[][VECTOR_SIZE]) {
+int init_matrix(double M[][VECTOR_SIZE]) {
   for (int i = 0; i < VECTOR_SIZE; ++i ) {
     for (int j = 0; j < VECTOR_SIZE; ++j ) {
-      ///M[i][j] = rand() % 100;
-      M[i][j] = i;
+      M[i][j] = drand48() * 100;
+      //M[i][j] = i;
     }
   }
   return 0;
 }
 
 void naive_multiplication(
-    int A[][VECTOR_SIZE],
-    int B[][VECTOR_SIZE],
-    long long int C[][VECTOR_SIZE]) {
+    double A[][VECTOR_SIZE],
+    double B[][VECTOR_SIZE],
+    double C[][VECTOR_SIZE]) {
   for (int i = 0; i < VECTOR_SIZE; ++i ) {
     for (int j = 0; j < VECTOR_SIZE; ++j ) {
       for (int k = 0; k < VECTOR_SIZE; ++k ) {
@@ -36,12 +37,12 @@ void naive_multiplication(
 }
 
 void blocked_multiplication(
-    int A[][VECTOR_SIZE],
-    int B[][VECTOR_SIZE],
-    long long int C[][VECTOR_SIZE]) {
+    double A[][VECTOR_SIZE],
+    double B[][VECTOR_SIZE],
+    double C[][VECTOR_SIZE]) {
 
   int i, j, k, kk, jj;
-  long long int sum;
+  double sum;
   const int NUMBER_OF_BLOCKS = BLOCK_SIZE * (VECTOR_SIZE / BLOCK_SIZE);
 
   for (kk = 0; kk < NUMBER_OF_BLOCKS; kk += BLOCK_SIZE) {
@@ -59,18 +60,20 @@ void blocked_multiplication(
 
 
 int main(int argc, char **argv) {
-  int A[VECTOR_SIZE][VECTOR_SIZE];
-  int B[VECTOR_SIZE][VECTOR_SIZE];
-  long long int C[VECTOR_SIZE][VECTOR_SIZE];
+  srand48(time(NULL));
+
+  double A[VECTOR_SIZE][VECTOR_SIZE];
+  double B[VECTOR_SIZE][VECTOR_SIZE];
+  double C[VECTOR_SIZE][VECTOR_SIZE];
 
   init_matrix(A);
   init_matrix(B);
-  memset(C, 0, VECTOR_SIZE * VECTOR_SIZE * sizeof(long long int));
+  memset(C, 0, VECTOR_SIZE * VECTOR_SIZE * sizeof(double));
 
   blocked_multiplication(A, B, C);
 
-  long long int D[VECTOR_SIZE][VECTOR_SIZE];
-  memset(D, 0, VECTOR_SIZE * VECTOR_SIZE * sizeof(long long int));
+  double D[VECTOR_SIZE][VECTOR_SIZE];
+  memset(D, 0, VECTOR_SIZE * VECTOR_SIZE * sizeof(double));
   naive_multiplication(A, B, D);
   int equal = 1;
   for (int i = 0; i < VECTOR_SIZE; ++i ) {
