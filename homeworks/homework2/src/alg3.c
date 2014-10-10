@@ -23,6 +23,7 @@ int calc_chunk_for_proc(int proc, int problem_size, int procs) {
 int init_vector(int vect[]) {
   for (int i = 0; i < VECTOR_SIZE; ++i ) {
     vect[i] = rand() % 100;
+    //vect[i] = i;
   }
   return 0;
 }

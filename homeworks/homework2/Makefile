@@ -7,6 +7,10 @@ VECTOR_SIZE=10 100 5000
 VECTOR_SIZE_P2=128 512 1024 1600 6144
 BLOCK_SIZES=16 32 64
 
+MKL_INCLUDE=/opt/software/ClusterStudio/2011.0/mkl/include
+MKL_LIBS=-lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lm
+
+
 
 #all: exec/alg2-GNU-OpenMPI exec/alg3-GNU-OpenMPI
 all: exec/alg3-GNU-OpenMPI
@@ -16,6 +20,10 @@ COMPILE:
 	module unload $(ALL_MODULES) && \
 	module load ${TMODULES} && \
 	tau_cc.sh -optCompInst -std=gnu99 -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} -DBLOCK_SIZE=${BSIZE} ${EXEC_SRC}
+
+MKL_COMPILE:
+	mkdir -p exec/
+	$(CC) -Wall -I$(MKL_INCLUDE) $(CFLAGS) -o ${EXEC_TARGET} ${EXEC_SRC} $(MKL_LIBS)
 
 SUBMIT:
 	echo "cd ${WORKDIR}/\$$p; module unload ${ALL_MODULES}; module load ${TMODULES}; mpiexec -np \$$p tau_exec ./${EXECUTABLE};" | cat pbs/header.sub - pbs/footer.sub | tee ${WORKDIR}/script.sub | \
@@ -144,9 +152,7 @@ exec/matmult-dgemm-GNU-OpenMPI: export EXEC_SRC = src/matmult-dgemm.c
 exec/matmult-dgemm-GNU-OpenMPI: src/matmult-dgemm.c
 	mkdir -p exec
 	for n in ${VECTOR_SIZE_P2}; do \
-      for b in ${BLOCK_SIZES}; do \
-	    $(MAKE) NSIZE=$$n BSIZE=$$b EXEC_TARGET=exec/matmult-dgemm-GNU-OpenMPI-$$n-$$b COMPILE_LOCAL; \
-	  done; \
+	  $(MAKE) NSIZE=$$n BSIZE=$$b EXEC_TARGET=exec/matmult-dgemm-GNU-OpenMPI-$$n-$$b MKL_COMPILE; \
 	done
 
 workdir/matmult-dgemm-GNU-OpenMPI.pbs: export TMODULES = GNU OpenMPI TAU
