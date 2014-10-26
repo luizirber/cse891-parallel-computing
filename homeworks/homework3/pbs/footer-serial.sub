@@ -1,0 +1,6 @@
+  cd $PBS_O_WORKDIR
+done
+
+qstat -f $PBS_JOBID
+
+echo "Finished OpenMP run"
