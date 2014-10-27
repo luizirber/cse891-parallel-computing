@@ -3,7 +3,3 @@
 cd $PBS_O_WORKDIR
 set -exu
 
-THREADS="1 2 4 8 10 16 20"
-
-for p in ${THREADS}
-do
