@@ -89,24 +89,23 @@ workdir/omp_jloop.pbs:
 #
 ###############
 
-exec/qsort-GNU: export TMODULES = GNU TAU
-exec/qsort-GNU: export EXEC_SRC = src/qsort.c
-exec/qsort-GNU: src/qsort.c
-	mkdir -p exec
-	for n in ${VECTOR_SIZE}; do \
-	  $(MAKE) NSIZE=$$n EXEC_TARGET=exec/qsort-GNU-$$n COMPILE; \
-	done
+exec/qsort-GNU: $(addprefix exec/qsort-GNU-,$(VECTOR_SIZE))
 
-workdir/qsort.pbs: export TMODULES = GNU TAU
-workdir/qsort.pbs: export EXEC_BASE=qsort-GNU
-workdir/qsort.pbs: export WTIME_MINUTES=5
-workdir/qsort.pbs: export WORKDIR_BASE=workdir/qsort
-workdir/qsort.pbs:
-	for n in ${VECTOR_SIZE}; do \
-	  mkdir -p ${WORKDIR_BASE}/$$n/ ; \
-      cp exec/${EXEC_BASE}-$$n ${WORKDIR_BASE}/$$n ; \
-      $(MAKE) WTIME_MINUTES=${WTIME_MINUTES} WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT_SERIAL; \
-    done
+workdir/qsort.pbs: $(foreach v,$(VECTOR_SIZE),\
+                     $(subst VSIZE,$v,workdir/qsort/VSIZE/qsort-GNU-VSIZE.pbs))
+
+exec/qsort-GNU-%: export TMODULES = GNU TAU
+exec/qsort-GNU-%: export EXEC_SRC = src/qsort.c
+exec/qsort-GNU-%: src/qsort.c
+	$(MAKE) NSIZE=$* EXEC_TARGET=exec/qsort-GNU-$* COMPILE
+
+workdir/qsort/%/qsort-GNU-%.pbs: export TMODULES = GNU TAU
+workdir/qsort/%/qsort-GNU-%.pbs: export WTIME_MINUTES=5
+workdir/qsort/%/qsort-GNU-%.pbs: export WORKDIR_BASE=workdir/qsort
+workdir/qsort/%/qsort-GNU-%.pbs: exec/qsort-GNU-%
+	mkdir -p ${WORKDIR_BASE}/$*
+	cp $< ${WORKDIR_BASE}/$*
+	$(MAKE) WTIME_MINUTES=${WTIME_MINUTES} WORKDIR=${WORKDIR_BASE}/$* EXECUTABLE=$< SUBMIT_SERIAL
 
 ################
 #
@@ -119,83 +118,16 @@ workdir/%/tauprofile: workdir/%/profile.0.0.0
 	cd $(@D); \
 	pprof > tauprofile
 
-TAU_PROFILES_ILOOP: workdir/omp_iloop/10/1/tauprofile \
-workdir/omp_iloop/10/2/tauprofile \
-workdir/omp_iloop/10/4/tauprofile \
-workdir/omp_iloop/10/8/tauprofile \
-workdir/omp_iloop/10/10/tauprofile \
-workdir/omp_iloop/10/16/tauprofile \
-workdir/omp_iloop/10/20/tauprofile \
-workdir/omp_iloop/100/1/tauprofile \
-workdir/omp_iloop/100/2/tauprofile \
-workdir/omp_iloop/100/4/tauprofile \
-workdir/omp_iloop/100/8/tauprofile \
-workdir/omp_iloop/100/10/tauprofile \
-workdir/omp_iloop/100/16/tauprofile \
-workdir/omp_iloop/100/20/tauprofile \
-workdir/omp_iloop/1000/1/tauprofile \
-workdir/omp_iloop/1000/2/tauprofile \
-workdir/omp_iloop/1000/4/tauprofile \
-workdir/omp_iloop/1000/8/tauprofile \
-workdir/omp_iloop/1000/10/tauprofile \
-workdir/omp_iloop/1000/16/tauprofile \
-workdir/omp_iloop/1000/20/tauprofile \
-workdir/omp_iloop/10000/1/tauprofile \
-workdir/omp_iloop/10000/2/tauprofile \
-workdir/omp_iloop/10000/4/tauprofile \
-workdir/omp_iloop/10000/8/tauprofile \
-workdir/omp_iloop/10000/10/tauprofile \
-workdir/omp_iloop/10000/16/tauprofile \
-workdir/omp_iloop/10000/20/tauprofile \
-workdir/omp_iloop/100000/1/tauprofile \
-workdir/omp_iloop/100000/2/tauprofile \
-workdir/omp_iloop/100000/4/tauprofile \
-workdir/omp_iloop/100000/8/tauprofile \
-workdir/omp_iloop/100000/10/tauprofile \
-workdir/omp_iloop/100000/16/tauprofile \
-workdir/omp_iloop/100000/20/tauprofile
+TAU_PROFILES_ILOOP: $(foreach v,$(VECTOR_SIZE),\
+                      $(subst VSIZE,$v,$(foreach t,$(THREADS),\
+                        $(subst THREAD,$t,workdir/omp_iloop/VSIZE/THREAD/tauprofile))))
 
-TAU_PROFILES_JLOOP: workdir/omp_jloop/10/1/tauprofile \
-workdir/omp_jloop/10/2/tauprofile \
-workdir/omp_jloop/10/4/tauprofile \
-workdir/omp_jloop/10/8/tauprofile \
-workdir/omp_jloop/10/10/tauprofile \
-workdir/omp_jloop/10/16/tauprofile \
-workdir/omp_jloop/10/20/tauprofile \
-workdir/omp_jloop/100/1/tauprofile \
-workdir/omp_jloop/100/2/tauprofile \
-workdir/omp_jloop/100/4/tauprofile \
-workdir/omp_jloop/100/8/tauprofile \
-workdir/omp_jloop/100/10/tauprofile \
-workdir/omp_jloop/100/16/tauprofile \
-workdir/omp_jloop/100/20/tauprofile \
-workdir/omp_jloop/1000/1/tauprofile \
-workdir/omp_jloop/1000/2/tauprofile \
-workdir/omp_jloop/1000/4/tauprofile \
-workdir/omp_jloop/1000/8/tauprofile \
-workdir/omp_jloop/1000/10/tauprofile \
-workdir/omp_jloop/1000/16/tauprofile \
-workdir/omp_jloop/1000/20/tauprofile \
-workdir/omp_jloop/10000/1/tauprofile \
-workdir/omp_jloop/10000/2/tauprofile \
-workdir/omp_jloop/10000/4/tauprofile \
-workdir/omp_jloop/10000/8/tauprofile \
-workdir/omp_jloop/10000/10/tauprofile \
-workdir/omp_jloop/10000/16/tauprofile \
-workdir/omp_jloop/10000/20/tauprofile \
-workdir/omp_jloop/100000/1/tauprofile \
-workdir/omp_jloop/100000/2/tauprofile \
-workdir/omp_jloop/100000/4/tauprofile \
-workdir/omp_jloop/100000/8/tauprofile \
-workdir/omp_jloop/100000/10/tauprofile \
-workdir/omp_jloop/100000/16/tauprofile \
-workdir/omp_jloop/100000/20/tauprofile
+TAU_PROFILES_JLOOP: $(foreach v,$(VECTOR_SIZE),\
+                      $(foreach t,$(THREADS),\
+                        $(subst VSIZE,$v,$(subst THREAD,$t,workdir/omp_jloop/VSIZE/THREAD/tauprofile))))
 
-TAU_PROFILES_QSORT: workdir/qsort/10/1/tauprofile \
-workdir/qsort/100/1/tauprofile \
-workdir/qsort/1000/1/tauprofile \
-workdir/qsort/10000/1/tauprofile \
-workdir/qsort/100000/1/tauprofile
+TAU_PROFILES_QSORT: $(foreach v,$(VECTOR_SIZE),\
+                      $(subst VSIZE,$v,workdir/qsort/VSIZE/1/tauprofile))
 
 clean:
 	- rm -rf *.o exec/
