@@ -1,0 +1,9 @@
+#!/bin/bash --login
+
+cd $PBS_O_WORKDIR
+set -exu
+
+THREADS="1 2 4 8 16 32 64 128 240"
+
+for p in ${THREADS}
+do

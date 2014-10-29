@@ -18,15 +18,25 @@ COMPILE:
 	module unload $(ALL_MODULES) && \
 	module load GNU && \
 	module load TAU && \
-	tau_cc.sh -optCompInst -optTrackGOMP -fopenmp -lgomp -std=gnu99 -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
-	#$(CC) -std=gnu99 -fopenmp -lgomp -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
+	tau_cc.sh -optCompInst -optTrackGOMP -O3 -fopenmp -lgomp -std=gnu99 -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
+
+COMPILE_INTEL:
+	mkdir -p exec/
+	module unload $(ALL_MODULES) && \
+	module load Intel && \
+	module load TAU && \
+	tau_cc.sh -optCompInst -optTrackGOMP -fopenmp -std=c99 -O3 -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
 
 SUBMIT_THREADS:
-	echo "cd ${WORKDIR}/\$$p; module unload ${ALL_MODULES}; module load GNU; module load TAU; export OMP_NUM_THREADS=\$$p ; ./${EXECUTABLE};" | cat pbs/header-threads.sub - pbs/footer-threads.sub | tee ${WORKDIR}/script.sub | \
-    qsub -l walltime=00:${WTIME_MINUTES}:00,nodes=1:ppn=20:mics=2,feature=phi -N ${EXECUTABLE} -o ${WORKDIR}/${EXECUTABLE}.pbs -e ${WORKDIR}/${EXECUTABLE}.err
+	echo "mkdir -p ${WORKDIR}/\$$p/; cp exec/${EXECUTABLE} ${WORKDIR}/\$$p/; cd ${WORKDIR}/\$$p/; module unload ${ALL_MODULES}; module load GNU; module load TAU; export OMP_NUM_THREADS=\$$p ; ./${EXECUTABLE};" | cat pbs/header-threads.sub - pbs/footer-threads.sub | tee ${WORKDIR}/script.sub | \
+    qsub -l walltime=00:${WTIME_MINUTES}:00,nodes=1:ppn=20:mics=2,feature=phi:gbe -N ${EXECUTABLE} -o ${WORKDIR}/${EXECUTABLE}.pbs -e ${WORKDIR}/${EXECUTABLE}.err
+
+SUBMIT_THREADS_INTEL:
+	echo "mkdir -p ${WORKDIR}/\$$p/; cp exec/${EXECUTABLE} ${WORKDIR}/\$$p/; cd ${WORKDIR}/\$$p/; module unload ${ALL_MODULES}; module load Intel; module load TAU; export OMP_NUM_THREADS=\$$p ; ./${EXECUTABLE};" | cat pbs/header-threads-intel.sub - pbs/footer-threads.sub | tee ${WORKDIR}/script.sub | \
+    qsub -l walltime=00:${WTIME_MINUTES}:00,nodes=1:ppn=20:mics=2,feature=phi:gbe -N ${EXECUTABLE} -o ${WORKDIR}/${EXECUTABLE}.pbs -e ${WORKDIR}/${EXECUTABLE}.err
 
 SUBMIT_SERIAL:
-	echo "cd ${WORKDIR}; module unload ${ALL_MODULES}; module load GNU; module load TAU; ./${EXECUTABLE};" | cat pbs/header-serial.sub - pbs/footer-serial.sub | tee ${WORKDIR}/script.sub | \
+	echo "cd ${WORKDIR}/1; module unload ${ALL_MODULES}; module load ${TMODULES}; module load TAU; ./${EXECUTABLE};" | cat pbs/header-serial.sub - pbs/footer-serial.sub | tee ${WORKDIR}/script.sub | \
     qsub -l walltime=00:${WTIME_MINUTES}:00,nodes=1:ppn=20 -N ${EXECUTABLE} -o ${WORKDIR}/${EXECUTABLE}.pbs -e ${WORKDIR}/${EXECUTABLE}.err
 
 ################
@@ -35,26 +45,22 @@ SUBMIT_SERIAL:
 #
 ################
 
-exec/omp_iloop-GNU: export TMODULES = GNU TAU
-exec/omp_iloop-GNU: export EXEC_SRC = src/omp_iloop.c
-exec/omp_iloop-GNU: src/omp_iloop.c
-	mkdir -p exec
-	for n in ${VECTOR_SIZE}; do \
-	  $(MAKE) NSIZE=$$n EXEC_TARGET=exec/omp_iloop-GNU-$$n COMPILE; \
-	done
+exec/omp_iloop-GNU: $(addprefix exec/omp_iloop-GNU-,$(VECTOR_SIZE))
 
-workdir/omp_iloop.pbs: export TMODULES=GNU TAU
-workdir/omp_iloop.pbs: export EXEC_BASE=omp_iloop-GNU
-workdir/omp_iloop.pbs: export WTIME_MINUTES=05
-workdir/omp_iloop.pbs: export WORKDIR_BASE=workdir/omp_iloop
-workdir/omp_iloop.pbs:
-	for n in ${VECTOR_SIZE}; do \
-      for p in ${THREADS}; do \
-		mkdir -p ${WORKDIR_BASE}/$$n/$$p ; \
-		cp exec/${EXEC_BASE}-$$n ${WORKDIR_BASE}/$$n/$$p ; \
-      done; \
-      $(MAKE) WTIME_MINUTES=${WTIME_MINUTES} WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT_THREADS; \
-    done
+workdir/omp_iloop.pbs: $(foreach v,$(VECTOR_SIZE),\
+                         $(subst VSIZE,$v,workdir/omp_iloop/VSIZE/omp_iloop-GNU-VSIZE.pbs))
+
+exec/omp_iloop-GNU-%: export TMODULES = GNU TAU
+exec/omp_iloop-GNU-%: src/omp_iloop.c
+	$(MAKE) NSIZE=$* EXEC_SRC=$< EXEC_TARGET=exec/omp_iloop-GNU-$* COMPILE
+
+workdir/omp_iloop/%.pbs: export TMODULES = GNU TAU
+workdir/omp_iloop/%.pbs: export WTIME_MINUTES=05
+workdir/omp_iloop/%.pbs: export WORKDIR_BASE=workdir/omp_iloop
+workdir/omp_iloop/%.pbs:
+	export NSIZE=`echo $(*) | cut -d "/" -f1` ; \
+	mkdir -p ${WORKDIR_BASE}/$${NSIZE} ; \
+	$(MAKE) WTIME_MINUTES=${WTIME_MINUTES} WORKDIR=${WORKDIR_BASE}/$${NSIZE} EXECUTABLE=omp_iloop-GNU-$${NSIZE} SUBMIT_THREADS
 
 ################
 #
@@ -62,26 +68,22 @@ workdir/omp_iloop.pbs:
 #
 ################
 
-exec/omp_jloop-GNU: export TMODULES = GNU TAU
-exec/omp_jloop-GNU: export EXEC_SRC = src/omp_jloop.c
-exec/omp_jloop-GNU: src/omp_jloop.c
-	mkdir -p exec
-	for n in ${VECTOR_SIZE}; do \
-	  $(MAKE) NSIZE=$$n EXEC_TARGET=exec/omp_jloop-GNU-$$n COMPILE; \
-	done
+exec/omp_jloop-GNU: $(addprefix exec/omp_jloop-GNU-,$(VECTOR_SIZE))
 
-workdir/omp_jloop.pbs: export TMODULES = GNU TAU
-workdir/omp_jloop.pbs: export EXEC_BASE=omp_jloop-GNU
-workdir/omp_jloop.pbs: export WTIME_MINUTES=15
-workdir/omp_jloop.pbs: export WORKDIR_BASE=workdir/omp_jloop
-workdir/omp_jloop.pbs:
-	for n in ${VECTOR_SIZE}; do \
-      for p in ${THREADS}; do \
-		mkdir -p ${WORKDIR_BASE}/$$n/$$p ; \
-		cp exec/${EXEC_BASE}-$$n ${WORKDIR_BASE}/$$n/$$p ; \
-      done; \
-      $(MAKE) WTIME_MINUTES=${WTIME_MINUTES} WORKDIR=${WORKDIR_BASE}/$$n EXECUTABLE=${EXEC_BASE}-$$n SUBMIT_THREADS; \
-    done
+workdir/omp_jloop.pbs: $(foreach v,$(VECTOR_SIZE),\
+                         $(subst VSIZE,$v,workdir/omp_jloop/VSIZE/omp_jloop-GNU-VSIZE.pbs))
+
+exec/omp_jloop-GNU-%: export TMODULES = GNU TAU
+exec/omp_jloop-GNU-%: src/omp_jloop.c
+	$(MAKE) NSIZE=$* EXEC_SRC=$< EXEC_TARGET=exec/omp_jloop-GNU-$* COMPILE
+
+workdir/omp_jloop/%.pbs: export TMODULES = GNU TAU
+workdir/omp_jloop/%.pbs: export WTIME_MINUTES=15
+workdir/omp_jloop/%.pbs: export WORKDIR_BASE=workdir/omp_jloop
+workdir/omp_jloop/%.pbs:
+	export NSIZE=`echo $(*) | cut -d "/" -f1` ; \
+	mkdir -p ${WORKDIR_BASE}/$${NSIZE} ; \
+	$(MAKE) WTIME_MINUTES=${WTIME_MINUTES} WORKDIR=${WORKDIR_BASE}/$${NSIZE} EXECUTABLE=omp_jloop-GNU-$${NSIZE} SUBMIT_THREADS
 
 ###############
 #
@@ -99,13 +101,62 @@ exec/qsort-GNU-%: export EXEC_SRC = src/qsort.c
 exec/qsort-GNU-%: src/qsort.c
 	$(MAKE) NSIZE=$* EXEC_TARGET=exec/qsort-GNU-$* COMPILE
 
-workdir/qsort/%/qsort-GNU-%.pbs: export TMODULES = GNU TAU
-workdir/qsort/%/qsort-GNU-%.pbs: export WTIME_MINUTES=5
-workdir/qsort/%/qsort-GNU-%.pbs: export WORKDIR_BASE=workdir/qsort
-workdir/qsort/%/qsort-GNU-%.pbs: exec/qsort-GNU-%
-	mkdir -p ${WORKDIR_BASE}/$*
-	cp $< ${WORKDIR_BASE}/$*
-	$(MAKE) WTIME_MINUTES=${WTIME_MINUTES} WORKDIR=${WORKDIR_BASE}/$* EXECUTABLE=$< SUBMIT_SERIAL
+workdir/qsort/%.pbs: export TMODULES = GNU
+workdir/qsort/%.pbs: export WTIME_MINUTES=05
+workdir/qsort/%.pbs: export WORKDIR_BASE=workdir/qsort
+workdir/qsort/%.pbs:
+	export NSIZE=`echo $(*) | cut -d "/" -f1` ; \
+	mkdir -p ${WORKDIR_BASE}/$${NSIZE}/1 ; \
+	cp exec/qsort-GNU-$${NSIZE} ${WORKDIR_BASE}/$${NSIZE}/1 ; \
+	$(MAKE) WTIME_MINUTES=${WTIME_MINUTES} WORKDIR=${WORKDIR_BASE}/$${NSIZE} EXECUTABLE=qsort-GNU-$${NSIZE} SUBMIT_SERIAL
+
+#############
+#
+# MIC i loop
+#
+#############
+
+exec/mic_iloop-Intel: $(addprefix exec/mic_iloop-Intel-,$(VECTOR_SIZE))
+
+workdir/mic_iloop.pbs: $(foreach v,$(VECTOR_SIZE),\
+                         $(subst VSIZE,$v,workdir/mic_iloop/VSIZE/mic_iloop-Intel-VSIZE.pbs))
+
+exec/mic_iloop-Intel-%: export TMODULES = Intel TAU
+exec/mic_iloop-Intel-%: src/mic_iloop.c
+	$(MAKE) NSIZE=$* EXEC_SRC=$< EXEC_TARGET=exec/mic_iloop-Intel-$* COMPILE_INTEL
+
+workdir/mic_iloop/%.pbs: export TMODULES = Intel TAU
+workdir/mic_iloop/%.pbs: export WTIME_MINUTES=05
+workdir/mic_iloop/%.pbs: export WORKDIR_BASE=workdir/mic_iloop
+workdir/mic_iloop/%.pbs:
+	export NSIZE=`echo $(*) | cut -d "/" -f1` ; \
+	mkdir -p ${WORKDIR_BASE}/$${NSIZE} ; \
+	$(MAKE) WTIME_MINUTES=${WTIME_MINUTES} WORKDIR=${WORKDIR_BASE}/$${NSIZE} EXECUTABLE=mic_iloop-Intel-$${NSIZE} SUBMIT_THREADS_INTEL
+
+############
+#
+# MIC qsort
+#
+############
+
+exec/mic_qsort-Intel: $(addprefix exec/mic_qsort-Intel-,$(VECTOR_SIZE))
+
+workdir/mic_qsort.pbs: $(foreach v,$(VECTOR_SIZE),\
+                     $(subst VSIZE,$v,workdir/mic_qsort/VSIZE/mic_qsort-Intel-VSIZE.pbs))
+
+exec/mic_qsort-Intel-%: export TMODULES = Intel
+exec/mic_qsort-Intel-%: export EXEC_SRC = src/mic_qsort.c
+exec/mic_qsort-Intel-%: src/mic_qsort.c
+	$(MAKE) NSIZE=$* EXEC_TARGET=exec/mic_qsort-Intel-$* COMPILE_INTEL
+
+workdir/mic_qsort/%.pbs: export TMODULES = Intel
+workdir/mic_qsort/%.pbs: export WTIME_MINUTES=05
+workdir/mic_qsort/%.pbs: export WORKDIR_BASE=workdir/mic_qsort
+workdir/mic_qsort/%.pbs:
+	export NSIZE=`echo $(*) | cut -d "/" -f1` ; \
+	mkdir -p ${WORKDIR_BASE}/$${NSIZE}/1 ; \
+	cp exec/mic_qsort-Intel-$${NSIZE} ${WORKDIR_BASE}/$${NSIZE}/1 ; \
+	$(MAKE) WTIME_MINUTES=${WTIME_MINUTES} WORKDIR=${WORKDIR_BASE}/$${NSIZE} EXECUTABLE=mic_qsort-Intel-$${NSIZE} SUBMIT_SERIAL
 
 ################
 #
@@ -130,6 +181,7 @@ TAU_PROFILES_QSORT: $(foreach v,$(VECTOR_SIZE),\
                       $(subst VSIZE,$v,workdir/qsort/VSIZE/1/tauprofile))
 
 clean:
-	- rm -rf *.o exec/
+	- rm -rf *.o
 
 .PHONY: COMPILE
+.SUFFIXES:
