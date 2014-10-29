@@ -35,5 +35,11 @@ int main(int argc, char** argv) {
 
   qsort_lib(vector, VECTOR_SIZE);
 
+  for(int i = 1; i < VECTOR_SIZE; i++) {
+    if (vector[i] < vector[i - 1]) {
+      return 1;
+    }
+  }
+
   return 0;
 }

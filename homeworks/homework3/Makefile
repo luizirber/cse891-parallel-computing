@@ -18,14 +18,14 @@ COMPILE:
 	module unload $(ALL_MODULES) && \
 	module load GNU && \
 	module load TAU && \
-	tau_cc.sh -optCompInst -optTrackGOMP -O3 -fopenmp -lgomp -std=gnu99 -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
+	tau_cc.sh -optCompInst -optTrackGOMP -fopenmp -lgomp -std=gnu99 -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
 
 COMPILE_INTEL:
 	mkdir -p exec/
 	module unload $(ALL_MODULES) && \
 	module load Intel && \
 	module load TAU && \
-	tau_cc.sh -optCompInst -optTrackGOMP -fopenmp -std=c99 -O3 -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
+	tau_cc.sh -optCompInst -optTrackGOMP -fopenmp -std=c99 -o ${EXEC_TARGET} -DVECTOR_SIZE=${NSIZE} ${EXEC_SRC}
 
 SUBMIT_THREADS:
 	echo "mkdir -p ${WORKDIR}/\$$p/; cp exec/${EXECUTABLE} ${WORKDIR}/\$$p/; cd ${WORKDIR}/\$$p/; module unload ${ALL_MODULES}; module load GNU; module load TAU; export OMP_NUM_THREADS=\$$p ; ./${EXECUTABLE};" | cat pbs/header-threads.sub - pbs/footer-threads.sub | tee ${WORKDIR}/script.sub | \
