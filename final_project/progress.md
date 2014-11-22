@@ -169,7 +169,8 @@ Nonetheless,
 adapting the code to use either Xeon Phi or GPUs could lead to even better results,
 since the hashing process is mostly CPU-bound.
 
-The current version of the parallel implementation:
+The current version of the parallel implementation is available:
+
 https://github.com/ged-lab/khmer/blob/3a6dfed60111c807f7c6d26cfc8c5bb52e6f1aca/lib/hllcounter.cc#L320
 
 Parameters which might affect performance are:
@@ -180,12 +181,14 @@ I used two different datasets during development,
 one being a subset 3 orders of magnitude smaller than the other:
 
 Gallus_3.longest25.partial.fasta
+
   - 112,455 basepairs
   - 47 seqs
   - 2392.7 average length
   - 111 KB
 
 Gallus_3.longest25.fasta
+
   - 149,943,923 bp
   - 44,336 seqs
   - 3,382.0 average length
@@ -247,6 +250,7 @@ Although it's 4 times smaller than the one I proposed to use,
 it is a typical dataset found by users.
 
 Chicken_10Kb20Kb_40X_Filtered_Subreads.fastq
+
   - 43,076,933,303 bp
   - 9,006,923 seqs
   - 4,782.6 average length
