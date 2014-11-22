@@ -545,3 +545,13 @@
 
 \endinput
 
+first page describing the
+%% publication status of the paper. 
+\newcommand{\published}[1]{% 
+   \gdef\puB{#1}} 
+   \newcommand{\puB}{} 
+   \renewcommand{\maketitlehooka}{% 
+       \par\noindent\footnotesize \puB} 
+
+\endinput
+

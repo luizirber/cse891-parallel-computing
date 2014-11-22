@@ -89,23 +89,12 @@ although it might not be a viable option:
 sequence datasets tend to be very large,
 and many systems don't have enough disk space to hold both original data and the processed file.
 
-Since the sequential HyperLogLog implementation is CPU-bound (limited by hashing),
-optimized input reading is not a priority initially.
-Because order is not important to HyperLogLog,
-one way to explore parallelism is by using chunked reading (and the pread() system call)
-to parse the input file in parallel.
-
 ## HyperLogLog update operation
 
 The update operation involves the calculation of a hash function of the input,
 some bitwise operations to determine special properties (longest run on 1 bits, for example)
 and a memory update to one position of the bit array.
-The only shared resource is the bit array,
-but to avoid any synchronization instead of having one HyperLogLog shared between threads
-(and so a critical section or atomic update of the bit array position)
-I opted for creating one HyperLogLog data structure for each thread.
-This way the resource is not shared,
-but when the updates are over a merge operation must be performed for the final result.
+The only shared resource is the bit array.
 
 ## HyperLogLog merge operation
 
@@ -113,7 +102,27 @@ The merge operation is a elementwise max-reduction between two bit arrays.
 Because the bit arrays are relatively small (about 128 KB) the merge operation is an excellent way to avoid resource sharing and synchronization during the update operations,
 at the cost of instantiating additional temporary HyperLogLog structures.
 Since their sizes are small,
-it is a viable tradeoff.
+this is a viable tradeoff.
+
+## Problem decomposition
+
+
+
+Since the sequential HyperLogLog implementation is CPU-bound (limited by hashing),
+optimized input reading is not a priority initially.
+In the future,
+Because order is not important to HyperLogLog,
+one way to explore parallelism is by using chunked reading (and the pread() system call)
+to parse the input file in parallel.
+The initial implementation uses one thread to parse the input.
+
+The only shared resource during updates is the bit array.
+In order to avoid any synchronization instead of having one HyperLogLog shared between threads
+(and so a critical section or atomic update of the bit array position)
+I opted for creating one HyperLogLog data structure for each thread.
+This way the resource is not shared,
+but when the updates are done a merge operation must be performed for the final result.
+
 
 <!--
 TODO:
@@ -138,50 +147,128 @@ TODO:
 
 I implemented parallelization in shared memory using OpenMP.
 Shared memory parallelization is useful because the most time consuming
-step is calculating the hash and this doesn't share state with other calculations,
-and so the critical operation is updating the bit arrays,
+step is calculating the hash and this doesn't share state among other calculations.
+The critical operation is updating the bit arrays,
 which is fast and just modify a small amount of memory.
 
+khmer is implemented both in Python and C++.
+Data structures and performance-critical sections are implemented in C++ and this low level API is exposed to Python,
+with scripts providing the functionality available to users.
+The Python interpreter is implemented using a global interpreter lock (GIL),
+which makes multithreading virtually impossible with pure Python.
+Usually multiprocessing is used instead,
+but there is a communication overhead (since memory is not shared between processes).
+C/C++ extensions are not affected,
+and so OpenMP is viable.
+
 The target architecture is multicore CPUs.
-The primary users of khmer are biologists and one of the aims of the software is easy installation and low barrier to start using.
+The primary users of khmer are biologists and one of the project goals is easy installation and a low cognitive barrier for new users.
 Compiling in a consistent way for Xeon Phi or GPUs is non-trivial in most systems,
 and even OpenMP is not supported in some popular platforms (OSX + clang, for example).
 Nonetheless,
 adapting the code to use either Xeon Phi or GPUs could lead to even better results,
 since the hashing process is mostly CPU-bound.
 
+The current version of the parallel implementation:
+https://github.com/ged-lab/khmer/blob/3a6dfed60111c807f7c6d26cfc8c5bb52e6f1aca/lib/hllcounter.cc#L320
 
+Parameters which might affect performance are:
+- Read length
+- K size
 
+I used two different datasets during development,
+one being a subset 3 orders of magnitude smaller than the other:
 
+Gallus_3.longest25.partial.fasta
+  - 112,455 basepairs
+  - 47 seqs
+  - 2392.7 average length
+  - 111 KB
 
-I intend to use the [Iowa corn soil metagenome dataset][3] as benchmark.
-This dataset consist of about a billion reads,
-totaling 300 GB of data.
-During the implementation I will use a subset,
-just so it is fast to run tests.
+Gallus_3.longest25.fasta
+  - 149,943,923 bp
+  - 44,336 seqs
+  - 3,382.0 average length
+  - 144 MB
 
-# How would you evaluate the success of your project?
+Despite being smaller,
+the average length of each sequence is about the same for both datasets.
+I used the partial dataset just to make quick tests
+(specially when segfaults were envolved).
 
-The SC14 article I cited previously contains some benchmarks,
-although with different datasets.
-I can't go so far as they did,
-since they had access to a supercomputer (NERSC's Edison) with more
-cores than we have available at MSU HPCC.
+This is the timing data for the complete dataset (all tests with k=32):
 
-Another important measure is how long it takes to run compared
-to Bloom filters construction,
-since the whole purpose of doing cardinality estimation is to
-optimize the memory consumption of Bloom filters.
-It should take only a small fraction of the time needed to build
-the proper Bloom filter,
-or else it is too expensive to be useful.
+``` bash
+  $ export OMP_NUM_THREADS=1
+  $ time ./hll ../../Gallus_3.longest25.fasta
+  129,388,424
+
+  real    0m52.660s
+  user    0m52.505s
+  sys     0m0.062s
+
+  $ export OMP_NUM_THREADS=2
+  $ time ./hll ../../Gallus_3.longest25.fasta
+  129,388,424
+
+  real    0m27.193s
+  user    0m54.142s
+  sys     0m0.082s
+
+  $ export OMP_NUM_THREADS=4
+  $ time ./hll ../../Gallus_3.longest25.fasta
+  129,388,424
+
+  real    0m14.042s
+  user    0m55.790s
+  sys     0m0.093s
+
+  $ export OMP_NUM_THREADS=8
+  $ time ./hll ../../Gallus_3.longest25.fasta
+  129,388,424
+
+  real    0m7.370s
+  user    0m58.318s
+  sys     0m0.084s
+
+  $ export OMP_NUM_THREADS=16
+  $ time ./hll ../../Gallus_3.longest25.fasta
+  129,388,424
+
+  real    0m3.773s
+  user    0m59.251s
+  sys     0m0.094s
+```
+
+![Parallel implementation speedup](report_speedup.png "")
+
+For stress testing I used a larger dataset.
+Although it's 4 times smaller than the one I proposed to use,
+it is a typical dataset found by users.
+
+Chicken_10Kb20Kb_40X_Filtered_Subreads.fastq
+  - 43,076,933,303 bp
+  - 9,006,923 seqs
+  - 4,782.6 average length
+  - 81 GB
+
+Using the Python API, with 16 threads and k = 32:
+
+``` bash
+  $ time python unique_kmers.py Chicken_10Kb20Kb_40X_Filtered_Subreads.fastq 32
+  unique k-mers: 41,954,729,591
+
+  real    35m2.600s
+  user    326m27.120s
+  sys     2m53.487s
+```
 
 ## Future Work
 
 <!-- 
 
 - 0.5 pages
-- Future work planned until the final report. Division of labor among team members. 
+- Future work planned until the final report. Division of labor among team members.
 
 -->
 
