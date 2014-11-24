@@ -1,6 +1,9 @@
 \documentclass[11pt,article,oneside]{memoir}
-\usepackage[minion]{org-preamble-pdflatex}
-\input{vc}
+\usepackage{org-preamble-pdflatex}
+\setulmarginsandblock{2cm}{2cm}{*}
+\setlrmarginsandblock{2cm}{2cm}{*}
+\checkandfixthelayout
+%\input{vc}
 
 $if(listings)$
 \usepackage{listings}
@@ -50,8 +53,6 @@ $endif$
 %\setmonofont[Mapping=tex-text,Scale=0.8]{Pragmata}
 \chapterstyle{article-4} 
 \pagestyle{kjh}
-
-\published{$date$. Incomplete Draft. Please do not cite without permission.}
 
 $if(title)$
 \maketitle

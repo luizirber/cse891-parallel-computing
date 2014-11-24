@@ -10,15 +10,6 @@ bibliography: <!-- \bibliography{bibs/fpbib-pandoc.bib} -->
 
 # Introduction
 
-<!--
-## Introduction
-
-- 1 page
-- Problem overview and motivation. What are you planning to achieve, what kind of impact do you expect? 
-- Review some related work in the literature. (You can borrow parts from your abstract).
-
--->
-
 ## Overview and motivation
 
 Next-Generation Sequencing (NGS) technologies generate data at increasing rates,
@@ -71,13 +62,6 @@ the same used for my sequential implementation,
 
 # Methods
 
-<!--
-- 1-1.5 pages
-- Details about the problem and encountered/expected challenges that need solutions.
-- Approach(es) you have taken so far - problem decomposition, load balancing, algorithms used, etc. 
-- What could be other solution approaches, if any?
--->
-
 ## Input parsing
 
 The most popular data format for sequences is FASTA,
@@ -106,8 +90,6 @@ this is a viable tradeoff.
 
 ## Problem decomposition
 
-
-
 Since the sequential HyperLogLog implementation is CPU-bound (limited by hashing),
 optimized input reading is not a priority initially.
 In the future,
@@ -123,7 +105,6 @@ I opted for creating one HyperLogLog data structure for each thread.
 This way the resource is not shared,
 but when the updates are done a merge operation must be performed for the final result.
 
-
 <!--
 TODO:
   use pread(),
@@ -136,14 +117,7 @@ TODO:
 -->
 
 
-## Initial results
-
-<!--
-- 1 page
-- Describe the programming languages, tools or libraries used.
-- Describe the target architecture (multicore CPUs, Xeon Phis or GPUs?). Provide details even if you are using the systems at HPCC, think as if you are writing this for a general audience.
-- Provide initial performance results - serial performance vs. parallel performance, strong scaling study, etc. How do you define/evaluate the success for your parallelization efforts?
--->
+# Initial results
 
 I implemented parallelization in shared memory using OpenMP.
 Shared memory parallelization is useful because the most time consuming
@@ -169,13 +143,13 @@ Nonetheless,
 adapting the code to use either Xeon Phi or GPUs could lead to even better results,
 since the hashing process is mostly CPU-bound.
 
-The current version of the parallel implementation is available:
+The current version of the parallel implementation is available on [GitHub][4].
 
-https://github.com/ged-lab/khmer/blob/3a6dfed60111c807f7c6d26cfc8c5bb52e6f1aca/lib/hllcounter.cc#L320
-
+<!--
 Parameters which might affect performance are:
 - Read length
 - K size
+-->
 
 I used two different datasets during development,
 one being a subset 3 orders of magnitude smaller than the other:
@@ -205,43 +179,31 @@ This is the timing data for the complete dataset (all tests with k=32):
   $ export OMP_NUM_THREADS=1
   $ time ./hll ../../Gallus_3.longest25.fasta
   129,388,424
-
-  real    0m52.660s
-  user    0m52.505s
-  sys     0m0.062s
+  real    0m52.660s user    0m52.505s sys     0m0.062s
 
   $ export OMP_NUM_THREADS=2
   $ time ./hll ../../Gallus_3.longest25.fasta
   129,388,424
-
-  real    0m27.193s
-  user    0m54.142s
-  sys     0m0.082s
+  real    0m27.193s user    0m54.142s sys     0m0.082s
 
   $ export OMP_NUM_THREADS=4
   $ time ./hll ../../Gallus_3.longest25.fasta
   129,388,424
-
-  real    0m14.042s
-  user    0m55.790s
-  sys     0m0.093s
+  real    0m14.042s user    0m55.790s sys     0m0.093s
 
   $ export OMP_NUM_THREADS=8
   $ time ./hll ../../Gallus_3.longest25.fasta
   129,388,424
-
-  real    0m7.370s
-  user    0m58.318s
-  sys     0m0.084s
+  real    0m7.370s user    0m58.318s sys     0m0.084s
 
   $ export OMP_NUM_THREADS=16
   $ time ./hll ../../Gallus_3.longest25.fasta
   129,388,424
-
-  real    0m3.773s
-  user    0m59.251s
-  sys     0m0.094s
+  real    0m3.773s user    0m59.251s sys     0m0.094s
 ```
+
+Speedup times are close to linear,
+which is best seem on Figure 1.
 
 ![Parallel implementation speedup](report_speedup.png "")
 
@@ -256,32 +218,40 @@ Chicken_10Kb20Kb_40X_Filtered_Subreads.fastq
   - 4,782.6 average length
   - 81 GB
 
-Using the Python API, with 16 threads and k = 32:
+Using the Python API, with 16 threads and k = 32,
+the running time is close to what is expected when extrapolating the
+results on smaller datasets,
+(about 36 minutes):
 
 ``` bash
   $ time python unique_kmers.py Chicken_10Kb20Kb_40X_Filtered_Subreads.fastq 32
   unique k-mers: 41,954,729,591
-
-  real    35m2.600s
-  user    326m27.120s
-  sys     2m53.487s
+  real    35m2.600s user    326m27.120s sys     2m53.487s
 ```
 
-## Future Work
+# Future Work
 
-<!-- 
+The priority is doing proper benchmarking and find bottlenecks.
+I already ran some tests using TAU and the C++ driver program,
+but I would like to test in 'real' conditions,
+going through the Python API.
+It is also essential to run multiple replicates and add error intervals
+to all measurements.
 
-- 0.5 pages
-- Future work planned until the final report. Division of labor among team members.
+Initially I proposed to extend the shared memory implementation with MPI.
+Given the additional burden for the project in terms of installation
+I'm planning to implement it using MPI4py,
+which can be an optional dependency and doesn't affect the compilation process.
 
--->
-
-The second part is extending the shared memory implementation with MPI.
-The challenge in this part is doing efficient input communication
-or even parallel I/O,
-since usually the inputs are FASTA files,
-which is a text format that need to be parsed sequentially.
+Before implementing anything MPI-related,
+I still want to explore the parallel input reading (chunked) and check
+if it is viable.
+I'm expecting worse or at most equal results for a small number of threads,
+but this might be better when a large number of threads is used.
+An additional approach can use a variable number of readers,
+instead of only one (current implementation) or everyone reading (proposal above).
 
 [1]: http://www.eecs.berkeley.edu/~egeor/sc14_genome.pdf
 [2]: https://github.com/ged-lab/khmer/pull/257
 [3]: http://metagenomics.anl.gov/metagenomics.cgi?page=MetagenomeProject&project=6368
+[4]: https://github.com/ged-lab/khmer/blob/3a6dfed60111c807f7c6d26cfc8c5bb52e6f1aca/lib/hllcounter.cc#L320
